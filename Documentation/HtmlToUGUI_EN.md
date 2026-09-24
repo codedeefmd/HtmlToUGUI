@@ -132,6 +132,17 @@ The `com.unity.2d.sprite` package must be installed. SpriteAtlas support must be
 
 ## Technical Details
 
+### Box Shadows and Rounded Corners
+
+The converter maps `box-shadow` to UGUI `Graphic` layers. It supports comma-separated outer and `inset` layers, each with horizontal/vertical offsets, blur radius, spread radius, and color. Lengths support `px`, `em`, `rem`, and `calc()` without percentages. For example:
+
+```css
+box-shadow: 0 12px 24px rgba(0, 0, 0, .25), inset 0 0 8px #0004;
+border-radius: 16px;
+```
+
+`border-radius` supports one to four circular corner radii and individual corner properties on generated background `Image` objects, CSS borders, and shadows. The shader approximates blur, so the result can differ from a browser's Gaussian blur. Elliptical slash radii are approximated as circular. A background `Image` with a custom material keeps that material and does not get rounded clipping. Shadows are static at conversion time; dynamic pseudo-class shadows, `text-shadow`, and `filter: drop-shadow()` are not supported.
+
 ### Requirements
 
 - Unity 2019.4.26f1 or higher
@@ -143,7 +154,7 @@ The `com.unity.2d.sprite` package must be installed. SpriteAtlas support must be
 
 - HTML input must be pre-processed: every element must carry `data-u-left/top/width/height` attributes (absolute positioning), OR the HTML must be processed by the bundled "HTML解构工具" (in `Tools/HTMLTools/`)
 - Image source paths must point to files inside `Assets/` or `Packages/`
-- Border-radius is not yet rendered (outline via `Outline` component only)
+- Rounded clipping applies to the generated background `Image`, not its child content
 - Hyperlink click events on `<a>` tags are not wired up
 - CSS `display: flex` / `grid` layout is not simulated; only absolute and relative positioning are supported
 - Floating text (text nodes not wrapped in a tag, e.g., `<div>floating text<div></div></div>`) is not supported
