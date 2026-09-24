@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Xxhq.Htmltougui.Editor
@@ -520,6 +521,7 @@ namespace Xxhq.Htmltougui.Editor
             {
                 _cssParser.ParseStyleSheet(doc);
                 ParseNode(bodyNode, htmlRoot.transform);
+                EnsureEventSystem();
                 Selection.activeGameObject = htmlRoot;
             }
             else
@@ -529,6 +531,18 @@ namespace Xxhq.Htmltougui.Editor
             }
 
             Debug.Log("HTML 转换完成！");
+        }
+
+        /// <summary>
+        /// 确保当前场景的 UGUI 有输入事件入口。EventSystem 独立于每次重建的 HTML_Content，
+        /// 因此重复转换时只需复用已有对象，避免场景中出现多个事件系统。
+        /// </summary>
+        private static void EnsureEventSystem()
+        {
+            if (FindObjectOfType<EventSystem>() != null) return;
+
+            var eventSystem = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+            Undo.RegisterCreatedObjectUndo(eventSystem, "Create EventSystem");
         }
 
         /// <summary>
