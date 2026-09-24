@@ -11,6 +11,7 @@ Convert HTML + CSS content into Unity UGUI (Canvas) hierarchies at Editor time.
 ## Core Features
 
 - **CSS Parsing** — supports `<style>` tags, inline styles, compound selectors (class/ID/attribute/descendant/child), pseudo-classes (`:hover`/`:active`/`:disabled`), CSS variables (`var()`), and relative units (`em`/`rem`/`%`/`calc()`)
+- **Box Shadows and Rounded Corners** — converts layered outer/inset `box-shadow` and `border-radius` to UGUI graphics with a shader
 - **Three Layout Calculators** — **Smart** (auto-chooses anchor/stretch/center), **Stretch** (full percentage), **Center** (centered pivot)
 - **Pluggable Tag Handlers** — built-in support for `div`/`span`/`p`/`h1~h6`/`button`/`input`/`select`/`img`/`textarea`/`progress`/`meter`, extendable via `ITagHandler`
 - **File Watcher** — automatically re-imports and converts on HTML file changes

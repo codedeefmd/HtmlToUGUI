@@ -13,6 +13,7 @@
 ## 核心功能
 
 - **CSS 解析** — 支持 `<style>` 标签、行内样式、复合选择器（类/ID/属性/后代/子代）、伪类（`:hover`/`:active`/`:disabled`）、CSS 变量（`var()`）、相对单位（`em`/`rem`/`%`/`calc()`）
+- **盒阴影与圆角** — 将 `box-shadow` 的多层外阴影、内阴影和 `border-radius` 转为 UGUI 图层与 Shader 效果
 - **三种布局计算器** — **智能**（自动选择锚点/拉伸/居中）、**全拉伸**（百分比填满）、**居中**（居中轴心）
 - **可插拔标签处理器** — 内置支持 `div`/`span`/`p`/`h1~h6`/`button`/`input`/`select`/`img`/`textarea`/`progress`/`meter`，可通过 `ITagHandler` 扩展
 - **文件监视** — HTML 文件变更后自动重新导入并转换

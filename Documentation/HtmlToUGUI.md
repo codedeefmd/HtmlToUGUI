@@ -132,6 +132,17 @@ Dropdown 下拉项额外支持独立的伪类颜色设置（`ApplyDropdownItemPs
 
 ## 技术细节
 
+### 盒阴影与圆角
+
+转换器将 `box-shadow` 映射为 UGUI `Graphic` 图层，支持多个逗号分隔的外阴影和 `inset` 内阴影。每层支持水平/垂直偏移、模糊半径、扩散半径和颜色；长度支持 `px`、`em`、`rem` 和不含百分比的 `calc()`。例如：
+
+```css
+box-shadow: 0 12px 24px rgba(0, 0, 0, .25), inset 0 0 8px #0004;
+border-radius: 16px;
+```
+
+`border-radius` 支持一至四个圆形角半径和四角独立属性，作用于生成的背景 `Image`、CSS 边框与阴影。阴影模糊由 Shader 近似绘制，与浏览器的高斯模糊可能有差异；斜杠形式的椭圆圆角按圆形近似。已有自定义材质的背景 `Image` 会保留原材质，不应用圆角裁剪。阴影是转换时生成的静态样式，伪类阴影动态切换、`text-shadow` 和 `filter: drop-shadow()` 尚不支持。
+
 ### 环境要求
 
 - Unity 2019.4.26f1 或更高版本
@@ -143,7 +154,7 @@ Dropdown 下拉项额外支持独立的伪类颜色设置（`ApplyDropdownItemPs
 
 - HTML 输入必须经过预处理：每个元素必须携带 `data-u-left/top/width/height` 属性（绝对定位），或者 HTML 必须经过捆绑的「HTML解构工具」（位于 `Tools/HTMLTools/`）处理
 - 图片路径必须指向 `Assets/` 或 `Packages/` 目录内的文件
-- 圆角（border-radius）尚未渲染，仅通过 `Outline` 组件实现简单边框
+- 圆角裁剪目前只作用于生成元素的背景 `Image`，不会裁剪其子内容
 - `<a>` 标签的超链接点击事件尚未接入
 - CSS `display: flex` / `grid` 布局未模拟，仅支持绝对定位和相对定位
 - 不支持HTML游离的文本，如`<div>游离的文本<div></div></div>`

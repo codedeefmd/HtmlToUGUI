@@ -3,6 +3,12 @@
 格式基于 [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)，
 版本遵循 [Semantic Versioning](http://semver.org/spec/v2.0.0.html)。
 
+## [Unreleased]
+
+### Added
+- 将 CSS `box-shadow` 转为 UGUI Shader 图层，支持多层外阴影、内阴影、偏移、模糊、扩散和颜色
+- 将 `border-radius` 应用于生成的背景 Image 与阴影轮廓
+
 ## [0.3.0] - 2026-06-07
 
 ### Added
