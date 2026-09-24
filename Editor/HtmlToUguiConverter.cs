@@ -562,6 +562,8 @@ namespace Xxhq.Htmltougui.Editor
             if (go != null)
             {
                 _layoutCalculator.SetAnchorAndSize(go.GetComponent<RectTransform>(), styles, node);
+                // 阴影和圆角基于已确定的边框盒尺寸创建，避免参与 HTML 布局计算。
+                BoxShadowRenderer.Apply(go, styles);
                 // 确定子节点挂载点（ScrollView 挂在 Content 下）
                 Transform childParent = go.transform;
                 var scrollRect = go.GetComponent<ScrollRect>();
