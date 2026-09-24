@@ -99,7 +99,7 @@ namespace Xxhq.Htmltougui
             if (img != null)
             {
                 Color color = img.color;
-                color.a = UnitParser.Parse(opacity);
+                color.a = Mathf.Clamp01(UnitParser.Parse(opacity, 1f));
                 img.color = color;
                 if (img.color.a < _imgRaycastAlphaThreshold)
                     img.raycastTarget = false;
