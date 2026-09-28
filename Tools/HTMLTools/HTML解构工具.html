@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML 解构工具 · data-u-name 语义命名 v3.9.9</title>
+    <title>HTML 解构工具 · data-u-name 语义命名 v3.10.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         :root {
@@ -71,7 +71,8 @@
         textarea::placeholder { color: #b0b8c1; }
         textarea.input-area { min-height: 200px; flex: 2; }
 
-        .hidden-textarea { position: absolute; opacity: 0; pointer-events: none; height: 0; width: 0; }
+        /* 完整输出只供复制/下载读取；display:none 避免大段文本进入页面布局。 */
+        .hidden-textarea { display: none; }
 
         .url-loader { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
         .url-input, .proxy-input {
@@ -141,6 +142,12 @@
             border: none; display: block; position: absolute; left: 50%; top: 50%;
             transform-origin: center center; transform: translate(-50%,-50%);
         }
+        .preview-container iframe[hidden], .capture-preview[hidden] { display: none; }
+        .capture-preview {
+            position: absolute; inset: 0; overflow: auto; background: #fff;
+            align-content: start; scrollbar-gutter: stable;
+        }
+        .capture-preview img { display: block; width: 100%; height: auto; }
         .preview-placeholder {
             position: absolute; inset: 0; display: flex; align-items: center;
             justify-content: center; color: #c0c7cf; font-size: 0.9rem;
@@ -150,15 +157,16 @@
 
         .output-str-section { flex: 1; display: flex; flex-direction: column; padding: 8px 22px 20px; gap: 10px; min-height: 0; }
         .output-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-        .btn-copy, .btn-download {
+        .btn-copy, .btn-download, .btn-code-view {
             display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
             border: 1.5px solid var(--border); background: var(--surface); border-radius: var(--radius-sm);
             font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); cursor: pointer;
             transition: var(--transition); white-space: nowrap; margin-left: 12px;
         }
-        .btn-copy:hover:not(:disabled), .btn-download:hover:not(:disabled) { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .btn-copy:hover:not(:disabled), .btn-download:hover:not(:disabled), .btn-code-view:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
         .btn-copy.copied { background: var(--success); color: #fff; border-color: var(--success); }
         .btn-copy:disabled, .btn-download:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-code-view[hidden] { display: none; }
 
         .stats-bar { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.75rem; color: var(--text-secondary); flex-shrink: 0; padding: 2px 0; }
         .stat-item { display: flex; align-items: center; gap: 5px; background: #f8f9fb; padding: 4px 10px; border-radius: 20px; border: 1px solid #eef1f5; }
@@ -214,7 +222,7 @@
         <div class="logo-icon">&#10233;</div>
         <h1>HTML 解构工具</h1>
         <span class="subtitle">data-u-name · 语义命名</span>
-        <span class="version-tag">v3.9.9</span>
+        <span class="version-tag">v3.10.0</span>
     </header>
 
     <div class="main-content">
@@ -223,7 +231,7 @@
                 <div class="section-label"><span class="dot dot-input"></span> 输入的 HTML 字符串</div>
                 <div class="url-loader">
                     <input type="text" id="urlInput" class="url-input" placeholder="网络 URL">
-                    <input type="text" id="proxyInput" class="proxy-input" placeholder="自定义 CORS 代理（留空自动尝试）">
+                    <input type="text" id="proxyInput" class="proxy-input" placeholder="本地代理（默认 127.0.0.1:8888）">
                     <button id="btnLoadUrl" class="btn-load">🌐 加载 URL</button>
                     <label class="btn-file">
                         📁 选择本地文件
@@ -260,13 +268,15 @@
                 </div>
                 <div class="preview-container" id="previewContainer">
                     <div class="preview-placeholder" id="previewPlaceholder">🔍 解构后的页面将在此展示</div>
-                    <iframe id="previewFrame" title="HTML预览" loading="lazy"></iframe>
+                    <iframe id="previewFrame" title="HTML预览" loading="lazy" hidden></iframe>
+                    <div id="capturePreview" class="capture-preview" role="img" aria-label="浏览器采集的静态页面预览" hidden></div>
                 </div>
             </div>
             <div class="output-str-section">
                 <div class="output-header">
                     <div class="section-label"><span class="dot dot-output"></span> 输出的 HTML 字符串（格式化）</div>
                     <div style="display: flex; gap: 8px;">
+                        <button id="btnToggleFullCode" class="btn-code-view" hidden aria-pressed="false" title="仅切换代码区展示；复制和下载始终使用完整 HTML">查看完整代码</button>
                         <button id="btnCopy" class="btn-copy" disabled title="复制带属性的原始 HTML">📋 复制</button>
                         <button id="btnDownload" class="btn-download" disabled title="下载 HTML 文件">📥 下载</button>
                     </div>
@@ -436,8 +446,10 @@
         const el = id => document.getElementById(id);
         const inputHtmlEl = el('inputHtml');
         const outputHtmlDisplay = el('outputHtmlDisplay');
+        const outputCodeWrapper = el('outputCodeWrapper');
         const outputHtmlRaw = el('outputHtmlRaw');
         const btnDeconstruct = el('btnDeconstruct');
+        const btnToggleFullCode = el('btnToggleFullCode');
         const btnCopy = el('btnCopy');
         const btnDownload = el('btnDownload');
         const toastEl = el('toast');
@@ -445,6 +457,7 @@
         const toastMsg = toastEl.querySelector('.toast-msg');
         const previewContainer = el('previewContainer');
         const previewFrame = el('previewFrame');
+        const capturePreview = el('capturePreview');
         const previewPlaceholder = el('previewPlaceholder');
         const statElements = el('statElements');
         const statNamed = el('statNamed');
@@ -461,6 +474,12 @@
 
         let userWidth = 1920, userHeight = 1080;
         let selectedFileHandle = null;
+        let captureCache = null;
+        // 巨型网页快照常含单行压缩 CSS；关闭 textarea 自动换行可避免载入时排版成数千行。
+        const setInputHtml = html => {
+            inputHtmlEl.wrap = html.length > 100_000 ? 'off' : 'soft';
+            inputHtmlEl.value = html;
+        };
 
         function setOutputButtonsEnabled(enabled) {
             btnCopy.disabled = !enabled;
@@ -558,16 +577,28 @@
         };
         const resetStats = () => { statElements.textContent = statNamed.textContent = statInline.textContent = '-'; };
 
-        const formatHTML = html => {
+        // 代码区只是查看入口：大块内联代码默认折叠，完整结果仍保存在 outputHtmlRaw 中供复制、下载和同步。
+        // 8192 字符阈值让普通示例保持原样，同时避免压缩 CSS 形成数百万像素宽的单行布局。
+        const codePreviewBlockLimit = 8192;
+        const formatHTML = (html, foldLargeBlocks, maxNodes = Infinity) => {
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             let result = '';
+            let foldedBlocks = 0;
+            let renderedNodes = 0;
+            let omittedNodes = false;
             const doctypeMatch = html.trim().match(/^<!DOCTYPE[^>]*>/i);
             if (doctypeMatch) result = doctypeMatch[0] + '\n';
             const voidEls = new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
             function process(node, depth) {
                 const indent = '  '.repeat(depth);
+                if (renderedNodes >= maxNodes) {
+                    if (!omittedNodes) result += indent + '<!-- 后续结构已折叠；复制和下载包含完整 HTML -->\n';
+                    omittedNodes = true;
+                    return;
+                }
                 if (node.nodeType === Node.ELEMENT_NODE) {
+                    renderedNodes++;
                     const tag = node.tagName.toLowerCase();
                     const isVoid = voidEls.has(tag);
                     let openTag = '<' + tag;
@@ -577,14 +608,22 @@
                         result += indent + openTag + '>' + node.childNodes[0].textContent + '</' + tag + '>\n'; return;
                     }
                     result += indent + openTag + '>\n';
-                    if (tag === 'script' || tag === 'style') { (node.textContent || '').split('\n').forEach(line => result += indent + '  ' + line + '\n'); }
+                    if (tag === 'script' || tag === 'style') {
+                        const content = node.textContent || '';
+                        if (foldLargeBlocks && content.length > codePreviewBlockLimit) {
+                            foldedBlocks++;
+                            result += `${indent}  /* ${tag === 'style' ? 'CSS' : 'JavaScript'} 共 ${content.length} 字符，代码区已折叠；复制和下载保留全文 */\n`;
+                        } else {
+                            content.split('\n').forEach(line => result += indent + '  ' + line + '\n');
+                        }
+                    }
                     else { for (const child of node.childNodes) process(child, depth + 1); }
                     result += indent + '</' + tag + '>\n';
                 } else if (node.nodeType === Node.TEXT_NODE) { const text = node.textContent.replace(/\n\s*/g, ' ').trim(); if (text) result += indent + text + '\n'; }
                 else if (node.nodeType === Node.COMMENT_NODE) { result += indent + '<!--' + node.textContent + '-->\n'; }
             }
             for (const child of doc.childNodes) { if (child.nodeType !== Node.DOCUMENT_TYPE_NODE) process(child, 0); }
-            return result.trimEnd();
+            return { text: result.trimEnd(), foldedBlocks, omittedNodes };
         };
         const highlightHTML = html => {
             const esc = html.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -604,85 +643,162 @@
             .hljs-css,.hljs-js{color:#abb2bf}
         `}));
 
+        let showFullCode = false;
+        let hasFoldedCode = false;
+        const clearOutputCode = () => {
+            outputHtmlRaw.value = '';
+            outputHtmlDisplay.textContent = '';
+            // 清空旧内容后再复位滚动；在插入大型代码后复位会同步触发整块代码的布局。
+            outputCodeWrapper.scrollTop = outputCodeWrapper.scrollLeft = 0;
+            showFullCode = hasFoldedCode = false;
+            btnToggleFullCode.hidden = true;
+            btnToggleFullCode.setAttribute('aria-pressed', 'false');
+        };
+        const renderOutputCode = () => {
+            // 完整 HTML 始终从隐藏文本框读取；展开按钮仅影响可见代码，不改变预览和导出内容。
+            const maxNodes = !showFullCode && outputHtmlRaw.value.length > 50_000 ? 120 : Infinity;
+            const { text, foldedBlocks, omittedNodes } = formatHTML(outputHtmlRaw.value, !showFullCode, maxNodes);
+            if (!showFullCode) hasFoldedCode = foldedBlocks > 0 || omittedNodes;
+            outputHtmlDisplay.innerHTML = highlightHTML(text);
+            btnToggleFullCode.hidden = !hasFoldedCode;
+            btnToggleFullCode.textContent = showFullCode ? '收起长代码' : '查看完整代码';
+            btnToggleFullCode.setAttribute('aria-pressed', String(showFullCode));
+        };
+
+        const localProxy = 'http://127.0.0.1:8888/';
         const defaultProxies = [
             url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
             url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
         ];
-        const fetchWithTimeout = async (url, timeout = 8000) => {
+        const fetchText = async (url, timeout) => {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), timeout);
             try {
-                const ctrl = new AbortController();
-                const timer = setTimeout(() => ctrl.abort(), timeout);
                 const res = await fetch(url, { signal: ctrl.signal, mode: 'cors' });
-                clearTimeout(timer);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 100)}`);
                 return await res.text();
-            } catch (directErr) {
-                const userProxy = proxyInput.value.trim();
-                if (userProxy) {
-                    try {
-                        const proxyUrl = userProxy.includes('{url}') ? userProxy.replace('{url}', encodeURIComponent(url)) : userProxy + encodeURIComponent(url);
-                        const ctrl = new AbortController();
-                        const timer = setTimeout(() => ctrl.abort(), timeout);
-                        const res = await fetch(proxyUrl, { signal: ctrl.signal });
-                        clearTimeout(timer);
-                        if (!res.ok) throw new Error(`代理返回 HTTP ${res.status}`);
-                        return await res.text();
-                    } catch (e) {}
-                }
-                for (const proxyFn of defaultProxies) {
-                    try {
-                        const proxyUrl = proxyFn(url);
-                        const ctrl = new AbortController();
-                        const timer = setTimeout(() => ctrl.abort(), timeout);
-                        const res = await fetch(proxyUrl, { signal: ctrl.signal });
-                        clearTimeout(timer);
-                        if (!res.ok) throw new Error(`代理返回 HTTP ${res.status}`);
-                        return await res.text();
-                    } catch (e) {}
-                }
-                throw new Error(`请求失败。直接: ${directErr.message}；请检查 URL 或提供有效的 CORS 代理地址。`);
-            }
+            } finally { clearTimeout(timer); }
         };
-
-        const prependProxyToRelativePaths = (html) => {
-            let base = proxyInput.value.trim();
-            if (!base) {
-                const userUrl = urlInput.value.trim();
-                if (userUrl) {
-                    const lastSlash = userUrl.lastIndexOf('/');
-                    if (lastSlash !== -1) base = userUrl.substring(0, lastSlash + 1);
-                }
+        const getLocalProxyRoots = () => {
+            const custom = proxyInput.value.trim();
+            const roots = [];
+            if (custom && !custom.includes('{url}')) {
+                try {
+                    const parsed = new URL(custom);
+                    if (['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) roots.push(custom.endsWith('/') ? custom : custom + '/');
+                } catch {}
             }
-            if (!base) return html;
-            if (!base.endsWith('/')) base += '/';
-            let result = html;
-            result = result.replace(/<link\s[^>]*?\/?>/gi, (tag) => {
-                if (!/\brel\s*=\s*["']?stylesheet["']?/i.test(tag)) return tag;
-                const hrefMatch = tag.match(/\bhref\s*=\s*["']([^"']+)["']/i) || tag.match(/\bhref\s*=\s*([^\s>]+)/i);
-                if (!hrefMatch) return tag;
-                const href = hrefMatch[1];
-                if (/^(https?:)?\/\//i.test(href)) return tag;
-                const newHref = base + href;
-                return tag.replace(/(\bhref\s*=\s*["'])([^"']+)(["'])/i, '$1' + newHref + '$3');
-            });
-            result = result.replace(/<script\b[^>]*>/gi, (tag) => {
-                const srcMatch = tag.match(/\bsrc\s*=\s*["']([^"']+)["']/i) || tag.match(/\bsrc\s*=\s*([^\s>]+)/i);
-                if (!srcMatch) return tag;
-                const src = srcMatch[1];
-                if (/^(https?:)?\/\//i.test(src)) return tag;
-                const newSrc = base + src;
-                return tag.replace(/(\bsrc\s*=\s*["'])([^"']+)(["'])/i, '$1' + newSrc + '$3');
-            });
-            return result;
+            if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) roots.push(location.origin + '/');
+            roots.push(localProxy);
+            return [...new Set(roots)];
         };
-
+        // 资源读取按直接请求、自定义/本地代理、公共代理依次回退，并保留各段失败原因。
+        const fetchWithTimeout = async (url, timeout = 8000) => {
+            const custom = proxyInput.value.trim();
+            const attempts = [];
+            // 从本地服务打开工具时，远程 CSS 先经同源代理获取，避免每次先等待浏览器的 CORS 拒绝。
+            if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
+                for (const root of getLocalProxyRoots()) attempts.push({ name: '本地代理', url: root + encodeURIComponent(url) });
+            }
+            attempts.push({ name: '直接请求', url });
+            if (custom) attempts.push({ name: '自定义代理', url: custom.includes('{url}') ? custom.replace('{url}', encodeURIComponent(url)) : custom + encodeURIComponent(url) });
+            for (const root of getLocalProxyRoots()) attempts.push({ name: '本地代理', url: root + encodeURIComponent(url) });
+            defaultProxies.forEach((proxy, index) => attempts.push({ name: `公共代理 ${index + 1}`, url: proxy(url) }));
+            const errors = [];
+            const seen = new Set();
+            for (const attempt of attempts) {
+                if (seen.has(attempt.url)) continue;
+                seen.add(attempt.url);
+                try { return await fetchText(attempt.url, timeout); }
+                catch (error) { errors.push(`${attempt.name}: ${error.message}`); }
+            }
+            throw new Error(`请求失败。${errors.join('；')}`);
+        };
+        // 只有随仓库提供的本地服务具备 /capture；公共 CORS 代理只能转发原始 HTML。
+        const fetchCapturedPage = async (input) => {
+            const errors = [];
+            for (const root of getLocalProxyRoots()) {
+                const ctrl = new AbortController();
+                const timer = setTimeout(() => ctrl.abort(), 65000);
+                try {
+                    const url = root + 'capture';
+                    const options = input.url
+                        ? { signal: ctrl.signal }
+                        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal: ctrl.signal };
+                    const endpoint = input.url ? url + '?' + new URLSearchParams(input) : url;
+                    const response = await fetch(endpoint, options);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 160)}`);
+                    const captured = await response.json();
+                    if (!captured.annotatedHtml || !Array.isArray(captured.screenshots)) throw new Error('代理未返回页面结构和预览');
+                    return captured;
+                } catch (error) { errors.push(`${root}: ${error.message}`); }
+                finally { clearTimeout(timer); }
+            }
+            throw new Error(errors.join('；'));
+        };
+        // 旧版本本地代理的兼容回退；新服务使用一次采集同时取得页面和坐标。
+        const fetchRenderedHtml = async (url) => {
+            const errors = [];
+            for (const root of getLocalProxyRoots()) {
+                const query = new URLSearchParams({ url, width: String(userWidth), height: String(userHeight) });
+                try { return await fetchText(root + 'render?' + query, 45000); }
+                catch (error) { errors.push(error.message); }
+            }
+            throw new Error(errors.join('；'));
+        };
+        const prepareRemoteHtml = (html, url) => {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            // 远程脚本不能在工具的 srcdoc 来源安全且可靠地重放；动态内容由本地浏览器先行渲染。
+            doc.querySelectorAll('script, link[rel="modulepreload"], link[rel="preload"][as="script"]').forEach(el => el.remove());
+            let base = doc.head.querySelector('base[href]');
+            if (!base) { base = doc.createElement('base'); doc.head.prepend(base); base.href = url; }
+            const baseUrl = new URL(base.getAttribute('href'), url).href;
+            // 输出会离开原网站，图片与样式表必须保留可解析的绝对地址。
+            for (const [selector, attr] of [['img[src],source[src]', 'src'], ['link[href]', 'href'], ['video[poster]', 'poster']]) {
+                doc.querySelectorAll(selector).forEach(el => {
+                    const value = el.getAttribute(attr);
+                    if (!value || /^(data:|blob:|javascript:|#)/i.test(value)) return;
+                    try { el.setAttribute(attr, new URL(value, baseUrl).href); } catch {}
+                });
+            }
+            return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+        };
+        // 动态网页优先走浏览器快照；静态回退会明确提示内容可能不完整。
         const loadFromUrl = async (url) => {
-            if (!url.trim()) throw new Error('URL 不能为空');
-            showToast('idle', '正在加载...');
-            let html = await fetchWithTimeout(url);
-            html = prependProxyToRelativePaths(html);
-            showToast('success', '内容已加载');
-            inputHtmlEl.value = html;
+            let target;
+            try { target = new URL(url); } catch { throw new Error('请输入完整的 HTTP 或 HTTPS URL'); }
+            if (!['http:', 'https:'].includes(target.protocol)) throw new Error('仅支持 HTTP 或 HTTPS URL');
+            const captureWidth = userWidth, captureHeight = userHeight;
+            btnLoadUrl.disabled = true;
+            btnDeconstruct.disabled = true;
+            showToast('idle', '浏览器正在后台采集页面...');
+            captureCache = null;
+            try {
+                try {
+                    const result = await fetchCapturedPage({ url: target.href, width: captureWidth, height: captureHeight });
+                    const pageUrl = result.pageUrl || target.href;
+                    const input = prepareRemoteHtml(result.rawHtml, pageUrl);
+                    setInputHtml(input);
+                    captureCache = {
+                        input, width: captureWidth, height: captureHeight,
+                        result: { ...result, annotatedHtml: prepareRemoteHtml(result.annotatedHtml, pageUrl) }
+                    };
+                    showToast('success', '后台采集完成；点击“开始解构”展示预览和坐标');
+                    return;
+                } catch (captureError) {
+                    // 旧版代理仍可读原始 DOM，但在当前本地服务中不悄悄退回会卡顿的 iframe 路径。
+                    if (location.protocol !== 'file:') throw captureError;
+                    let html, renderError;
+                    try { html = await fetchRenderedHtml(target.href); }
+                    catch (error) { renderError = error; }
+                    if (!html) {
+                        try { html = await fetchWithTimeout(target.href); }
+                        catch (error) { throw new Error(`无法加载网页。浏览器采集：${captureError.message}；原始 HTML：${error.message}`); }
+                        showToast('error', `仅加载了原始 HTML；动态内容可能缺失。${renderError?.message || ''}`);
+                    } else showToast('error', '已使用旧版代理加载；建议更新本地服务以使用后台预览');
+                    setInputHtml(prepareRemoteHtml(html, target.href));
+                }
+            } finally { btnLoadUrl.disabled = false; btnDeconstruct.disabled = false; }
         };
 
         const inlineLocalResources = (html, fileMap) => {
@@ -734,18 +850,32 @@
             if (!mainHtmlFile) { showToast('error', '未找到 HTML 文件，请至少选择一个 .html 文件'); return; }
             let html = mainHtmlFile.text;
             html = inlineLocalResources(html, fileMap);
-            inputHtmlEl.value = html;
+            setInputHtml(html);
+            captureCache = null;
             showToast('success', `已加载 ${mainHtmlFile.name}，并自动内联了 ${fileMap.size - 1} 个本地资源`);
         };
 
-        const collectExternalResources = async (doc) => {
+        const absolutizeCssUrls = (css, stylesheetUrl) => css.replace(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/gi, (match, doubleQuoted, singleQuoted, unquoted) => {
+            const value = (doubleQuoted ?? singleQuoted ?? unquoted).trim();
+            if (!value || /^(data:|blob:|https?:|\/\/|#)/i.test(value)) return match;
+            try { return `url("${new URL(value, stylesheetUrl).href}")`; }
+            catch { return match; }
+        });
+        const collectExternalResources = async (doc, cache = new Map()) => {
             const links = [...doc.querySelectorAll('link[rel="stylesheet"][href]')]
-                .filter(l => { const href = l.getAttribute('href'); return href && (href.startsWith('http:') || href.startsWith('https:') || href.startsWith('//')); });
-            const cache = new Map(); let inlineCount = 0; const warnings = [];
+                .filter(link => /^https?:$/.test(new URL(link.href).protocol));
+            const seen = new Set(); let inlineCount = 0; const warnings = [];
             for (const link of links) {
                 const href = link.getAttribute('href');
-                if (!href || cache.has(href)) continue;
-                try { const content = await fetchWithTimeout(href); cache.set(href, content); inlineCount++; }
+                if (!href || seen.has(href)) continue;
+                seen.add(href);
+                if (cache.has(href)) { inlineCount++; continue; }
+                try {
+                    const content = await fetchWithTimeout(link.href);
+                    // 内联后 CSS 的 url(...) 将相对页面而非原样式表解析，先改成绝对地址。
+                    cache.set(href, absolutizeCssUrls(content, link.href));
+                    inlineCount++;
+                }
                 catch (e) { warnings.push(`CSS ${href}: ${e.message}`); }
             }
             return { inlineCount, warnings, cache };
@@ -775,7 +905,7 @@
         };
 
         const applyIframeScale = () => {
-            if (!previewFrame.contentDocument?.body) return;
+            if (previewFrame.hidden || !previewFrame.contentDocument?.body) return;
             const containerW = previewContainer.clientWidth, containerH = previewContainer.clientHeight;
             if (containerW === 0 || containerH === 0 || userWidth <= 0 || userHeight <= 0) return;
             const scale = Math.min(containerW / userWidth, containerH / userHeight, 1);
@@ -785,10 +915,31 @@
         };
 
         const resetIframe = () => {
-            previewFrame.srcdoc = '';
+            // 空 iframe 再次赋值 srcdoc 会触发一次无意义的文档导航和布局。
+            if (previewFrame.srcdoc) previewFrame.srcdoc = '';
             previewFrame.style = '';
+            previewFrame.hidden = true;
+            capturePreview.replaceChildren();
+            capturePreview.hidden = true;
             previewContainer.classList.remove('has-content');
             previewPlaceholder.style.display = '';
+        };
+
+        const showCapturedPreview = async (screenshots) => {
+            if (!screenshots.length) throw new Error('浏览器没有生成预览图');
+            capturePreview.hidden = false;
+            previewContainer.classList.add('has-content');
+            for (const [index, tile] of screenshots.entries()) {
+                const image = new Image();
+                image.alt = `页面预览第 ${index + 1} 段`;
+                image.decoding = 'async';
+                image.src = 'data:image/png;base64,' + tile.data;
+                await image.decode();
+                capturePreview.append(image);
+                showToast('idle', `正在显示页面预览（${index + 1}/${screenshots.length}）...`);
+                // 每张图交给浏览器单独绘制，让用户在大型页面上看到逐段出现的结果。
+                await new Promise(resolve => requestAnimationFrame(resolve));
+            }
         };
 
         const applyViewportFromInputs = () => {
@@ -822,18 +973,50 @@
 
         const handleDeconstruct = async () => {
             const input = inputHtmlEl.value;
+            let validationDoc;
             try {
-                const validationDoc = new DOMParser().parseFromString(input, 'text/html');
+                validationDoc = new DOMParser().parseFromString(input, 'text/html');
                 if (validationDoc.querySelectorAll('parsererror').length) throw new Error('HTML 解析错误');
             } catch (e) { showToast('error', '❌ 输入非法：' + e.message); return; }
 
-            resetStats(); resetIframe(); setOutputButtonsEnabled(false);
+            resetStats(); resetIframe(); clearOutputCode(); setOutputButtonsEnabled(false);
             btnDeconstruct.disabled = true; btnDeconstruct.classList.add('processing');
             btnDeconstruct.querySelector('.btn-icon').textContent = '⏳';
             showToast('idle', '正在加载页面...');
 
             try {
+                let result;
+                try {
+                    const cached = captureCache && captureCache.input === input && captureCache.width === userWidth && captureCache.height === userHeight;
+                    result = cached ? captureCache.result
+                        : await fetchCapturedPage({ html: input, width: userWidth, height: userHeight });
+                } catch (error) {
+                    if (location.protocol !== 'file:') throw error;
+                    showToast('error', `本地采集不可用，使用浏览器内预览：${error.message}`);
+                }
+                if (result) {
+                    const annotatedDoc = new DOMParser().parseFromString(result.annotatedHtml, 'text/html');
+                    // 预览与远程 CSS 读取并行；代理中的 Chrome 已完成页面布局，工具页只处理静态结果。
+                    const resources = collectExternalResources(annotatedDoc);
+                    await showCapturedPreview(result.screenshots);
+                    const { inlineCount, warnings, cache } = await resources;
+                    const finalHtml = inlineResourcesInHtml(result.annotatedHtml, cache);
+                    updateStats(result.total, result.namedCount, inlineCount);
+                    outputHtmlRaw.value = finalHtml;
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+                    renderOutputCode();
+                    setOutputButtonsEnabled(true);
+                    if (selectedFileHandle) await saveToSelectedFile(finalHtml);
+                    if (warnings.length || result.previewTruncated) {
+                        showToast('error', `解构完成；${warnings.length ? `CSS 内联警告：${warnings.join('；')}` : ''}${result.previewTruncated ? '预览图因页面过长已截断，坐标和 HTML 完整。' : ''}`);
+                    } else showToast('success', `✅ 完成！${result.total} 元素，${result.namedCount} 个 data-u-name`);
+                    return;
+                }
+                previewFrame.hidden = false;
                 previewFrame.srcdoc = input;
+                // 静态页面的样式请求与 iframe 加载并行；含脚本页面仍在加载后扫描，保留动态添加的样式表。
+                const resourceTask = validationDoc.querySelector('script') ? null
+                    : collectExternalResources(validationDoc).then(value => ({ value }), error => ({ error }));
 
                 await new Promise((resolve) => {
                     const timeout = setTimeout(() => {
@@ -863,7 +1046,10 @@
                 const doc = previewFrame.contentDocument;
                 if (!doc || !doc.body) throw new Error('无法访问 iframe 内容');
 
-                const { inlineCount, warnings, cache } = await collectExternalResources(doc);
+                const prefetched = resourceTask ? await resourceTask : null;
+                if (prefetched?.error) throw prefetched.error;
+                // 再扫一次实际页面，补上内联事件等途径在 iframe 中新增的样式表。
+                const { inlineCount, warnings, cache } = await collectExternalResources(doc, prefetched?.value.cache);
                 const { total, namedCount } = addDataUName(doc);
                 updateStats(total, namedCount, inlineCount);
                 if (warnings.length) showToast('error', `内联警告：${warnings.join('；')}`);
@@ -893,8 +1079,7 @@
                 finalHtml = inlineResourcesInHtml(finalHtml, cache);
 
                 outputHtmlRaw.value = finalHtml;
-                const formatted = formatHTML(finalHtml);
-                outputHtmlDisplay.innerHTML = highlightHTML(formatted);
+                renderOutputCode();
 
                 setOutputButtonsEnabled(true);
 
@@ -902,7 +1087,7 @@
 
                 showToast('success', `✅ 完成！${total} 元素，${namedCount} 个 data-u-name`);
             } catch (err) {
-                resetIframe(); resetStats(); setOutputButtonsEnabled(false);
+                resetIframe(); resetStats(); clearOutputCode(); setOutputButtonsEnabled(false);
                 showToast('error', '❌ ' + err.message); console.error(err);
             } finally {
                 btnDeconstruct.disabled = false; btnDeconstruct.classList.remove('processing');
@@ -911,6 +1096,11 @@
         };
 
         btnDeconstruct.addEventListener('click', handleDeconstruct);
+        btnToggleFullCode.addEventListener('click', () => {
+            if (!hasFoldedCode) return;
+            showFullCode = !showFullCode;
+            renderOutputCode();
+        });
 
         btnCopy.addEventListener('click', async () => {
             const text = outputHtmlRaw.value;
@@ -930,10 +1120,11 @@
         inputHtmlEl.addEventListener('keydown', e => {
             if ((e.ctrlKey||e.metaKey) && e.key==='Enter') { e.preventDefault(); if(!btnDeconstruct.disabled) handleDeconstruct(); }
         });
+        inputHtmlEl.addEventListener('input', () => { inputHtmlEl.wrap = inputHtmlEl.value.length > 100_000 ? 'off' : 'soft'; });
         btnLoadUrl.addEventListener('click', () => loadFromUrl(urlInput.value.trim()).catch(e => showToast('error', e.message)));
         fileInput.addEventListener('change', (e) => loadLocalFiles(e.target.files));
 
-        if (exampleHtml) inputHtmlEl.value = exampleHtml;
+        if (exampleHtml) setInputHtml(exampleHtml);
     })();
 </script>
 </body>
